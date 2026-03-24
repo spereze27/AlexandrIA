@@ -1,0 +1,49 @@
+###############################################################################
+# FormBuilder — Local Development
+# Usage: docker compose up -d postgres && cd backend && uvicorn app.main:app --reload
+###############################################################################
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: formbuilder-db
+    environment:
+      POSTGRES_DB: formbuilder
+      POSTGRES_USER: formbuilder_app
+      POSTGRES_PASSWORD: localdevpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formbuilder_app -d formbuilder"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Optional: run backend in Docker
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: formbuilder-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=formbuilder
+      - DB_USER=formbuilder_app
+      - DB_PASSWORD=localdevpassword
+      - ENVIRONMENT=dev
+      - DEBUG=true
+      - FRONTEND_URL=http://localhost:5173
+    env_file:
+      - backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - full  # only starts with: docker compose --profile full up
+
+volumes:
+  pgdata:

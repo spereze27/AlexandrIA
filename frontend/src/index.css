@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth scrolling on mobile */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Offline indicator */
+.offline-banner {
+  @apply fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white text-center text-sm py-1 px-4;
+}

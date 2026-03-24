@@ -1,0 +1,24 @@
+# ─── Copy this to terraform.tfvars and fill in your values ──────────────────
+# NEVER commit terraform.tfvars to git!
+
+project_id  = "your-gcp-project-id"
+region      = "us-central1"
+environment = "prod"
+
+# Cloud SQL
+db_tier = "db-f1-micro"    # Use db-custom-1-3840 for production
+db_name = "formbuilder"
+db_user = "formbuilder_app"
+
+# Cloud Run (leave empty for initial deploy, CI/CD manages images)
+backend_image         = ""
+frontend_image        = ""
+backend_cpu           = "1"
+backend_memory        = "512Mi"
+backend_max_instances = 5
+
+# Secrets (get these from respective consoles)
+gemini_api_key             = "your-gemini-api-key"
+google_maps_api_key        = "your-maps-api-key"
+google_oauth_client_id     = "your-oauth-client-id.apps.googleusercontent.com"
+google_oauth_client_secret = "your-oauth-client-secret"

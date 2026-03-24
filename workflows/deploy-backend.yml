@@ -1,0 +1,77 @@
+###############################################################################
+# FormBuilder — Backend CI/CD
+# Triggers on pushes to backend/ on main branch
+# Builds Docker image, pushes to Artifact Registry, deploys to Cloud Run
+###############################################################################
+
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+  SERVICE_NAME: formbuilder-backend
+  REGISTRY: ${{ secrets.GCP_REGION || 'us-central1' }}-docker.pkg.dev
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build Docker image
+        working-directory: backend
+        run: |
+          docker build \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:latest \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:latest
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Run database migrations
+        run: |
+          gcloud run jobs execute formbuilder-migrate \
+            --region ${{ env.REGION }} \
+            --wait \
+            2>/dev/null || echo "Migration job not found — skipping (run manually on first deploy)"
+
+      - name: Output service URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "### Backend deployed" >> $GITHUB_STEP_SUMMARY
+          echo "URL: $URL" >> $GITHUB_STEP_SUMMARY
+          echo "Image: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
