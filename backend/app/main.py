@@ -32,10 +32,16 @@ app = FastAPI(
 #   http://localhost:5173  /  http://localhost:3000           (dev local)
 #
 # Si además tienes un dominio custom (settings.frontend_url), se agrega
-# como origen exacto en allow_origins para no romper ese caso. 
+# como origen exacto en allow_origins para no romper ese caso.
 
 _CLOUD_RUN_REGEX = (
-    r"https://formbuilder-frontend-[a-z0-9]+-[a-z0-9]+\.a\.run\.app"
+    # Formato 1: hash corto  → formbuilder-frontend-abc123-uc.a.run.app
+    r"https://formbuilder-frontend-[a-z0-9]+-[a-z]{2}\.a\.run\.app"
+    # Formato 2: project-id  → formbuilder-frontend-472425700384.us-central1.run.app
+    r"|https://formbuilder-frontend-[0-9]+\.[a-z0-9-]+\.run\.app"
+    # Formato 3: cualquier otro subdominio de Cloud Run por si acaso
+    r"|https://formbuilder-frontend-[a-z0-9-]+\.run\.app"
+    # Dev local
     r"|http://localhost:(5173|3000)"
 )
 
