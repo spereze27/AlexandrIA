@@ -1,11 +1,15 @@
 ###############################################################################
 # FormBuilder GCP — Cloud Run Services (Backend + Frontend)
+#
+# Las API keys (Gemini, Maps, OAuth) NO se configuran aquí.
+# Se inyectan como env vars desde GitHub Actions al hacer deploy.
+# Terraform solo configura los secrets auto-generados (DB pass, JWT, Sheets SA).
 ###############################################################################
 
 locals {
   registry_prefix = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker.repository_id}"
 
-  # Use placeholder images for initial deploy, real images come from CI/CD
+  # Placeholder images for initial deploy, real images come from CI/CD
   backend_image  = var.backend_image != "" ? var.backend_image : "us-docker.pkg.dev/cloudrun/container/hello"
   frontend_image = var.frontend_image != "" ? var.frontend_image : "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -48,7 +52,7 @@ resource "google_cloud_run_v2_service" "backend" {
         container_port = 8000
       }
 
-      # ── Database ──
+      # ── Database (from Terraform-managed secrets) ──
       env {
         name  = "DB_HOST"
         value = "/cloudsql/${google_sql_database_instance.main.connection_name}"
@@ -71,38 +75,7 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
 
-      # ── Gemini ──
-      env {
-        name = "GEMINI_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.gemini_api_key.secret_id
-            version = "latest"
-          }
-        }
-      }
-
-      # ── Google OAuth ──
-      env {
-        name = "GOOGLE_OAUTH_CLIENT_ID"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.oauth_client_id.secret_id
-            version = "latest"
-          }
-        }
-      }
-      env {
-        name = "GOOGLE_OAUTH_CLIENT_SECRET"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.oauth_client_secret.secret_id
-            version = "latest"
-          }
-        }
-      }
-
-      # ── JWT ──
+      # ── JWT (from Terraform-managed secret) ──
       env {
         name = "JWT_SECRET"
         value_source {
@@ -113,7 +86,7 @@ resource "google_cloud_run_v2_service" "backend" {
         }
       }
 
-      # ── Google Sheets SA Key ──
+      # ── Sheets SA Key (from Terraform-managed secret) ──
       env {
         name = "GOOGLE_SHEETS_SA_KEY"
         value_source {
@@ -135,9 +108,25 @@ resource "google_cloud_run_v2_service" "backend" {
         name  = "ENVIRONMENT"
         value = var.environment
       }
+
+      # ── API Keys: placeholders, GitHub Actions overrides these at deploy ──
+      # Gemini, OAuth Client/Secret, Frontend URL
+      # Se inyectan con --update-env-vars en el workflow de GitHub Actions
+      env {
+        name  = "GEMINI_API_KEY"
+        value = "SET_BY_GITHUB_ACTIONS"
+      }
+      env {
+        name  = "GOOGLE_OAUTH_CLIENT_ID"
+        value = "SET_BY_GITHUB_ACTIONS"
+      }
+      env {
+        name  = "GOOGLE_OAUTH_CLIENT_SECRET"
+        value = "SET_BY_GITHUB_ACTIONS"
+      }
       env {
         name  = "FRONTEND_URL"
-        value = "https://${google_cloud_run_v2_service.frontend.uri}"
+        value = "SET_BY_GITHUB_ACTIONS"
       }
 
       volume_mounts {
@@ -170,16 +159,15 @@ resource "google_cloud_run_v2_service" "backend" {
   depends_on = [
     google_project_service.apis["run.googleapis.com"],
     google_secret_manager_secret_version.db_password,
-    google_secret_manager_secret_version.gemini_api_key,
-    google_secret_manager_secret_version.oauth_client_id,
-    google_secret_manager_secret_version.oauth_client_secret,
     google_secret_manager_secret_version.jwt_secret,
     google_secret_manager_secret_version.sheets_sa_key,
   ]
 
   lifecycle {
     ignore_changes = [
-      template[0].containers[0].image,  # Image is managed by CI/CD
+      template[0].containers[0].image,
+      # GitHub Actions overrides these env vars on every deploy
+      template[0].containers[0].env,
     ]
   }
 }
@@ -223,17 +211,11 @@ resource "google_cloud_run_v2_service" "frontend" {
         container_port = 3000
       }
 
+      # Frontend env vars are baked at build time via --build-arg in GitHub Actions
+      # These are just fallback placeholders
       env {
-        name  = "VITE_API_URL"
-        value = ""  # Set after backend deploys, or use relative /api proxy
-      }
-      env {
-        name  = "VITE_GOOGLE_MAPS_API_KEY"
-        value = var.google_maps_api_key
-      }
-      env {
-        name  = "VITE_GOOGLE_OAUTH_CLIENT_ID"
-        value = var.google_oauth_client_id
+        name  = "PLACEHOLDER"
+        value = "frontend-env-vars-baked-at-build-time"
       }
     }
   }
@@ -245,6 +227,7 @@ resource "google_cloud_run_v2_service" "frontend" {
   lifecycle {
     ignore_changes = [
       template[0].containers[0].image,
+      template[0].containers[0].env,
     ]
   }
 }

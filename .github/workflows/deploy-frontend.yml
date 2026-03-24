@@ -1,7 +1,8 @@
 ###############################################################################
 # FormBuilder — Frontend CI/CD
 # Triggers on pushes to frontend/ on main branch
-# Builds Docker image, pushes to Artifact Registry, deploys to Cloud Run
+# Builds Docker image con API keys baked via --build-arg (Vite las necesita
+# en build time) → pushes to Artifact Registry → deploys to Cloud Run
 ###############################################################################
 
 name: Deploy Frontend
@@ -15,9 +16,9 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+  REGION: ${{ secrets.GCP_REGION }}
   SERVICE_NAME: formbuilder-frontend
-  REGISTRY: ${{ secrets.GCP_REGION || 'us-central1' }}-docker.pkg.dev
+  REGISTRY: ${{ secrets.GCP_REGION }}-docker.pkg.dev
 
 jobs:
   build-and-deploy:
@@ -32,7 +33,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
-        id: auth
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -40,11 +40,19 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
 
+      - name: Get Backend URL
+        id: backend
+        run: |
+          URL=$(gcloud run services describe formbuilder-backend \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)' 2>/dev/null || echo "")
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
       - name: Build Docker image
         working-directory: frontend
         run: |
           docker build \
-            --build-arg VITE_API_URL=${{ secrets.BACKEND_URL || '' }} \
+            --build-arg VITE_API_URL=${{ steps.backend.outputs.url }}/api \
             --build-arg VITE_GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }} \
             --build-arg VITE_GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }} \
             -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:${{ github.sha }} \
@@ -57,11 +65,10 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:latest
 
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.SERVICE_NAME }}
-          region: ${{ env.REGION }}
-          image: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:${{ github.sha }}
+        run: |
+          gcloud run services update ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
       - name: Output service URL
         run: |

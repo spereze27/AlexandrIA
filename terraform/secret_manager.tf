@@ -1,84 +1,11 @@
 ###############################################################################
 # FormBuilder GCP — Secret Manager
+# Solo secrets auto-generados por Terraform.
+# Las API keys (Gemini, Maps, OAuth) se almacenan en GitHub Secrets
+# y se inyectan en Cloud Run via GitHub Actions al hacer deploy.
 ###############################################################################
 
-# ─── Gemini API Key ─────────────────────────────────────────────────────────
-
-resource "google_secret_manager_secret" "gemini_api_key" {
-  secret_id = "gemini-api-key"
-
-  replication {
-    auto {}
-  }
-
-  labels = local.labels
-
-  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
-}
-
-resource "google_secret_manager_secret_version" "gemini_api_key" {
-  secret      = google_secret_manager_secret.gemini_api_key.id
-  secret_data = var.gemini_api_key
-}
-
-# ─── Google Maps API Key ────────────────────────────────────────────────────
-
-resource "google_secret_manager_secret" "maps_api_key" {
-  secret_id = "google-maps-api-key"
-
-  replication {
-    auto {}
-  }
-
-  labels = local.labels
-
-  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
-}
-
-resource "google_secret_manager_secret_version" "maps_api_key" {
-  secret      = google_secret_manager_secret.maps_api_key.id
-  secret_data = var.google_maps_api_key
-}
-
-# ─── Google OAuth Client ID ─────────────────────────────────────────────────
-
-resource "google_secret_manager_secret" "oauth_client_id" {
-  secret_id = "google-oauth-client-id"
-
-  replication {
-    auto {}
-  }
-
-  labels = local.labels
-
-  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
-}
-
-resource "google_secret_manager_secret_version" "oauth_client_id" {
-  secret      = google_secret_manager_secret.oauth_client_id.id
-  secret_data = var.google_oauth_client_id
-}
-
-# ─── Google OAuth Client Secret ─────────────────────────────────────────────
-
-resource "google_secret_manager_secret" "oauth_client_secret" {
-  secret_id = "google-oauth-client-secret"
-
-  replication {
-    auto {}
-  }
-
-  labels = local.labels
-
-  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
-}
-
-resource "google_secret_manager_secret_version" "oauth_client_secret" {
-  secret      = google_secret_manager_secret.oauth_client_secret.id
-  secret_data = var.google_oauth_client_secret
-}
-
-# ─── JWT Secret (for session tokens) ────────────────────────────────────────
+# ─── JWT Secret (auto-generated) ────────────────────────────────────────────
 
 resource "random_password" "jwt_secret" {
   length  = 64
