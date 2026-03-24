@@ -145,12 +145,14 @@ from app.api.routes.forms import router as forms_router
 from app.api.routes.submissions import router as submissions_router
 from app.api.routes.agent import router as agent_router
 from app.api.routes.dashboard import router as dashboard_router
+from app.api.routes.setup import router as setup_router
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(forms_router, prefix="/api")
 app.include_router(submissions_router, prefix="/api")
 app.include_router(agent_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
+app.include_router(setup_router)
 
 
 # ─── Startup / shutdown ─────────────────────────────────────────────────────
