@@ -82,7 +82,10 @@ class Media(Base):
     gcs_url: Mapped[str] = mapped_column(Text, nullable=False)
     content_type: Mapped[str] = mapped_column(String(100))
     file_size: Mapped[int | None] = mapped_column()
-    metadata: Mapped[dict | None] = mapped_column(JSONB)  # GPS coords, timestamp, etc.
+    
+    # 🟢 CAMBIO AQUÍ: Cambiamos 'metadata' por 'file_metadata'
+    file_metadata: Mapped[dict | None] = mapped_column(JSONB)  # GPS coords, timestamp, etc.
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
