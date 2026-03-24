@@ -32,7 +32,7 @@ app = FastAPI(
 #   http://localhost:5173  /  http://localhost:3000           (dev local)
 #
 # Si además tienes un dominio custom (settings.frontend_url), se agrega
-# como origen exacto en allow_origins para no romper ese caso.
+# como origen exacto en allow_origins para no romper ese caso. 
 
 _CLOUD_RUN_REGEX = (
     r"https://formbuilder-frontend-[a-z0-9]+-[a-z0-9]+\.a\.run\.app"
