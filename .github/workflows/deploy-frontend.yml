@@ -2,9 +2,8 @@
 # FormBuilder — Frontend CI/CD
 # Triggers on pushes to frontend/ on main branch
 # Builds Docker image con API keys baked via --build-arg (Vite las necesita
-# en build time) → pushes to Artifact Registry → deploys to Cloud Run
+# en build time) → pushes to Artifact Registry → deploys a Cloud Run
 ###############################################################################
-
 name: Deploy Frontend
 
 on:
@@ -15,15 +14,14 @@ on:
       - '.github/workflows/deploy-frontend.yml'
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: ${{ secrets.GCP_REGION }}
+  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
+  REGION:       ${{ secrets.GCP_REGION }}
   SERVICE_NAME: formbuilder-frontend
-  REGISTRY: ${{ secrets.GCP_REGION }}-docker.pkg.dev
+  REGISTRY:     ${{ secrets.GCP_REGION }}-docker.pkg.dev
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       id-token: write
@@ -40,13 +38,20 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
 
+      # ── Obtener la URL del backend para pasarla como VITE_API_URL ──────────
+      # Vite bake las env vars en build-time, así que necesitamos la URL real
+      # del backend antes de construir la imagen.
       - name: Get Backend URL
         id: backend
         run: |
           URL=$(gcloud run services describe formbuilder-backend \
             --region ${{ env.REGION }} \
             --format 'value(status.url)' 2>/dev/null || echo "")
+          if [ -z "$URL" ]; then
+            echo "⚠️  Backend service not found — VITE_API_URL will be empty"
+          fi
           echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Backend URL: $URL"
 
       - name: Build Docker image
         working-directory: frontend
@@ -70,10 +75,24 @@ jobs:
             --region ${{ env.REGION }} \
             --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/formbuilder/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
+      # ── Notificar al backend su propia URL de frontend (actualiza CORS) ────
+      # Si el backend existe, actualizamos FRONTEND_URL para que el regex de
+      # CORS también tenga el valor exacto disponible en settings.frontend_url.
+      - name: Update backend FRONTEND_URL env var
+        run: |
+          FRONTEND_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          gcloud run services update formbuilder-backend \
+            --region ${{ env.REGION }} \
+            --update-env-vars "FRONTEND_URL=$FRONTEND_URL" \
+            2>/dev/null || echo "Backend service not found — skipping FRONTEND_URL update"
+
       - name: Output service URL
         run: |
           URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
             --region ${{ env.REGION }} \
             --format 'value(status.url)')
-          echo "### Frontend deployed" >> $GITHUB_STEP_SUMMARY
+          echo "### Frontend deployed ✅" >> $GITHUB_STEP_SUMMARY
           echo "URL: $URL" >> $GITHUB_STEP_SUMMARY
+          echo "Image: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

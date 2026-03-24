@@ -22,25 +22,47 @@ app = FastAPI(
 )
 
 # ─── CORS ───────────────────────────────────────────────────────────────────
+# allow_origin_regex cubre CUALQUIER revisión de Cloud Run.
+# El hash del subdominio cambia en cada deploy, por eso no podemos usar
+# allow_origins con una URL fija — usamos regex en su lugar.
+#
+# Patrones cubiertos:
+#   https://formbuilder-frontend-<hash>-uc.a.run.app        (us-central1)
+#   https://formbuilder-frontend-<hash>-<region>.a.run.app  (otras regiones)
+#   http://localhost:5173  /  http://localhost:3000           (dev local)
+#
+# Si además tienes un dominio custom (settings.frontend_url), se agrega
+# como origen exacto en allow_origins para no romper ese caso.
+
+_CLOUD_RUN_REGEX = (
+    r"https://formbuilder-frontend-[a-z0-9]+-[a-z0-9]+\.a\.run\.app"
+    r"|http://localhost:(5173|3000)"
+)
+
+# Orígenes exactos: solo el dominio custom si está configurado y no es localhost
+_exact_origins = ["http://localhost:5173", "http://localhost:3000"]
+if settings.frontend_url and "localhost" not in settings.frontend_url:
+    _exact_origins.append(settings.frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_url,
-        "http://localhost:5173",  # Vite dev
-        "http://localhost:3000",  # Docker local
-    ],
+    allow_origins=_exact_origins,
+    allow_origin_regex=_CLOUD_RUN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ─── Health check ───────────────────────────────────────────────────────────
 
+# ─── Health check ───────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "formbuilder-backend", "environment": settings.environment}
+    return {
+        "status": "ok",
+        "service": "formbuilder-backend",
+        "environment": settings.environment,
+    }
 
 
 # ─── Mount routers ──────────────────────────────────────────────────────────
@@ -58,8 +80,7 @@ app.include_router(agent_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 
 
-# ─── Startup / shutdown ────────────────────────────────────────────────────
-
+# ─── Startup / shutdown ─────────────────────────────────────────────────────
 
 @app.on_event("startup")
 async def on_startup():
