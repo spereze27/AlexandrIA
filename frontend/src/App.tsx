@@ -37,7 +37,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 export default function App() {
   const { token, setUser, logout } = useAuthStore();
 
-  // Fetch current user on mount if we have a token
+  // Fetch current user on mount if we have a token 
   useEffect(() => {
     if (token) {
       authApi.getMe().then((res) => setUser(res.data)).catch(() => logout());

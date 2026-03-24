@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """All config is injected via Cloud Run env vars (from Secret Manager or Terraform)."""
+    """All config is injected via Cloud Run env vars (from Secret Manager or Terraform)"""
 
     # ── Environment ──
     environment: str = "dev"
